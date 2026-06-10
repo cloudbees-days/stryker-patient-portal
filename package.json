@@ -1,0 +1,25 @@
+{
+  "name": "stryker-patient-portal",
+  "version": "2.4.1",
+  "description": "Patient-facing digital health application handling regulated data",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest",
+    "build": "webpack --config webpack.prod.js"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0",
+    "react-router-dom": "^6.20.0",
+    "fhir.js": "^0.0.21"
+  },
+  "keywords": ["patient-portal", "digital-health", "fhir", "regulated"],
+  "metadata": {
+    "businessUnit": "Digital Health",
+    "criticality": "high",
+    "platform": "non-OSEP",
+    "tags": ["patient-data", "regulated", "digital-health", "external-facing"]
+  }
+}

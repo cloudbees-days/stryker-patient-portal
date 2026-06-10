@@ -1,0 +1,105 @@
+name: SBOM Governance Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sbom-check:
+    name: SBOM Required — Compliance Gate
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for current SBOM
+        id: sbom-check
+        run: |
+          echo "Checking for SBOM artifacts..."
+          if [ ! -f sbom.json ] && [ ! -f sbom.xml ] && [ ! -f bom.json ] && [ ! -f bom.xml ]; then
+            echo "sbom_present=false" >> $GITHUB_OUTPUT
+            echo "::error title=SBOM Missing::No current SBOM found. Regulated patient-facing applications must generate and publish a current SBOM before deployment."
+          else
+            echo "sbom_present=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate SARIF finding
+        if: steps.sbom-check.outputs.sbom_present == 'false'
+        run: |
+          cat > sbom-findings.sarif << 'EOF'
+          {
+            "version": "2.1.0",
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "CCI Governance",
+                    "version": "1.0.0",
+                    "rules": [
+                      {
+                        "id": "CCI-SBOM-001",
+                        "name": "SBOMRequired",
+                        "shortDescription": { "text": "SBOM Required" },
+                        "fullDescription": { "text": "All regulated applications must generate and publish a current SBOM." },
+                        "help": { "text": "Generate an SBOM using Syft or CycloneDX and publish as a pipeline artifact." },
+                        "properties": {
+                          "tags": ["compliance", "regulated", "sbom"],
+                          "severity": "high",
+                          "owner": "CCI Operations",
+                          "policy": "SBOM Required",
+                          "remediationEffortHours": 24,
+                          "estimatedNonComplianceCost": 175000
+                        }
+                      }
+                    ]
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "CCI-SBOM-001",
+                    "level": "error",
+                    "message": { "text": "Missing current SBOM. Regulated patient-facing application lacks current SBOM evidence. Estimated non-compliance cost: $175,000. Remediation effort: 24 hours." },
+                    "locations": [
+                      {
+                        "physicalLocation": {
+                          "artifactLocation": { "uri": "package.json", "uriBaseId": "%SRCROOT%" },
+                          "region": { "startLine": 1 }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload SARIF
+        if: steps.sbom-check.outputs.sbom_present == 'false'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sbom-findings.sarif
+          category: cci-sbom-governance
+
+      - name: Fail pipeline — SBOM governance gate
+        if: steps.sbom-check.outputs.sbom_present == 'false'
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║          CCI GOVERNANCE GATE FAILURE                        ║"
+          echo "╠══════════════════════════════════════════════════════════════╣"
+          echo "║  Policy:      SBOM Required                                 ║"
+          echo "║  Severity:    HIGH                                           ║"
+          echo "║  Finding:     Missing current SBOM                          ║"
+          echo "║  Owner:       CCI Operations                                ║"
+          echo "║  Effort:      24 hours                                      ║"
+          echo "║  Cost Risk:   \$175,000                                      ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          exit 1
